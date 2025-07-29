@@ -1,14 +1,105 @@
 <!DOCTYPE html>
-<html>
+<html lang="ko">
 <head>
-    <title>Chat</title>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.5.0/socket.io.js"></script>
-    <script src="/static/js/chat.js"></script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>채팅 - MyApp</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/main.css') }}">
 </head>
 <body>
-    <div id="chat-rooms"></div>
-    <div id="messages"></div>
-    <input id="message-input" type="text">
-    <button onclick="sendMessage()">Send</button>
+    <nav class="navbar">
+        <div class="navbar-content">
+            <div class="logo">MyApp</div>
+            <ul class="nav-links">
+                <li><a href="/calendar">캘린더</a></li>
+                <li><a href="/chat" class="active">채팅</a></li>
+                <li><a href="/profile">프로필</a></li>
+                <li><a href="#" onclick="logout()">로그아웃</a></li>
+            </ul>
+        </div>
+    </nav>
+
+    <div class="main-container">
+        <div class="chat-container">
+            <!-- 채팅 사이드바 -->
+            <div class="chat-sidebar">
+                <div class="chat-rooms">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+                        <h3>채팅방</h3>
+                        <button class="add-event-btn" onclick="openCreateRoomModal()" style="padding: 0.5rem 1rem; font-size: 0.9rem;">+ 방 만들기</button>
+                    </div>
+                    <div id="roomsList">
+                        <!-- 채팅방 목록이 동적으로 추가됩니다 -->
+                    </div>
+                </div>
+                
+                <div class="online-users">
+                    <h3>온라인 사용자</h3>
+                    <div id="onlineUsers">
+                        <!-- 온라인 사용자 목록 -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- 메인 채팅 영역 -->
+            <div class="chat-main">
+                <div class="chat-header">
+                    <h3 id="currentRoomName">채팅방을 선택해주세요</h3>
+                    <div id="roomInfo"></div>
+                </div>
+                
+                <div class="messages-container" id="messagesContainer">
+                    <div id="messages">
+                        <div style="text-align: center; color: #666; padding: 2rem;">
+                            채팅방을 선택하면 대화를 시작할 수 있습니다.
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="chat-input" id="chatInput" style="display: none;">
+                    <div class="input-group">
+                        <input 
+                            type="text" 
+                            id="messageInput" 
+                            placeholder="메시지를 입력하세요..." 
+                            onkeypress="handleKeyPress(event)"
+                        >
+                        <button class="send-btn" onclick="sendMessage()">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <line x1="22" y1="2" x2="11" y2="13"></line>
+                                <polygon points="22,2 15,22 11,13 2,9"></polygon>
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 채팅방 생성 모달 -->
+    <div class="modal" id="createRoomModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>새 채팅방 만들기</h3>
+                <button class="close-btn" onclick="closeCreateRoomModal()">&times;</button>
+            </div>
+            <form id="createRoomForm">
+                <div class="form-group">
+                    <label for="roomName">채팅방 이름</label>
+                    <input type="text" id="roomName" name="name" required>
+                </div>
+                <div class="form-group">
+                    <label>
+                        <input type="checkbox" id="isGroup" name="is_group"> 
+                        그룹 채팅
+                    </label>
+                </div>
+                <button type="submit" class="btn">채팅방 만들기</button>
+            </form>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.5.0/socket.io.js"></script>
+    <script src="{{ url_for('static', filename='js/chat.js') }}"></script>
 </body>
 </html>

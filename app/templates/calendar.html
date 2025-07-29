@@ -1,11 +1,118 @@
 <!DOCTYPE html>
-<html>
+<html lang="ko">
 <head>
-    <title>Calendar</title>
-    <script src="/static/js/calendar.js"></script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>캘린더 - MyApp</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/main.css') }}">
 </head>
 <body>
-    <div id="calendar"></div>
-    <button onclick="addEvent()">Add Event</button>
+    <nav class="navbar">
+        <div class="navbar-content">
+            <div class="logo">MyApp</div>
+            <ul class="nav-links">
+                <li><a href="/calendar" class="active">캘린더</a></li>
+                <li><a href="/chat">채팅</a></li>
+                <li><a href="/profile">프로필</a></li>
+                <li><a href="#" onclick="logout()">로그아웃</a></li>
+            </ul>
+        </div>
+    </nav>
+
+    <div class="main-container">
+        <!-- 이벤트 추가 폼 -->
+        <div class="event-form">
+            <h3>새 이벤트 추가</h3>
+            <form id="eventForm">
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="title">제목</label>
+                        <input type="text" id="title" name="title" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="repeat">반복</label>
+                        <select id="repeat" name="repeat">
+                            <option value="">반복 없음</option>
+                            <option value="daily">매일</option>
+                            <option value="weekly">매주</option>
+                            <option value="monthly">매월</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="start_time">시작 시간</label>
+                        <input type="datetime-local" id="start_time" name="start_time" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="end_time">종료 시간</label>
+                        <input type="datetime-local" id="end_time" name="end_time">
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label for="description">설명</label>
+                    <textarea id="description" name="description" rows="3"></textarea>
+                </div>
+                <button type="submit" class="btn">이벤트 추가</button>
+            </form>
+        </div>
+
+        <!-- 캘린더 컨테이너 -->
+        <div class="calendar-container">
+            <div class="calendar-header">
+                <h2>내 일정</h2>
+                <button class="add-event-btn" onclick="scrollToForm()">+ 이벤트 추가</button>
+            </div>
+            <div class="events-grid" id="eventsGrid">
+                <!-- 이벤트들이 동적으로 추가됩니다 -->
+            </div>
+        </div>
+    </div>
+
+    <!-- 이벤트 편집 모달 -->
+    <div class="modal" id="editModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>이벤트 편집</h3>
+                <button class="close-btn" onclick="closeModal()">&times;</button>
+            </div>
+            <form id="editEventForm">
+                <input type="hidden" id="editEventId">
+                <div class="form-group">
+                    <label for="editTitle">제목</label>
+                    <input type="text" id="editTitle" name="title" required>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="editStartTime">시작 시간</label>
+                        <input type="datetime-local" id="editStartTime" name="start_time" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="editEndTime">종료 시간</label>
+                        <input type="datetime-local" id="editEndTime" name="end_time">
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label for="editDescription">설명</label>
+                    <textarea id="editDescription" name="description" rows="3"></textarea>
+                </div>
+                <div class="form-group">
+                    <label for="editRepeat">반복</label>
+                    <select id="editRepeat" name="repeat">
+                        <option value="">반복 없음</option>
+                        <option value="daily">매일</option>
+                        <option value="weekly">매주</option>
+                        <option value="monthly">매월</option>
+                    </select>
+                </div>
+                <div style="display: flex; gap: 1rem;">
+                    <button type="submit" class="btn" style="flex: 1;">수정</button>
+                    <button type="button" class="btn" style="flex: 1; background: #ff6b6b;" onclick="deleteEvent()">삭제</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script src="{{ url_for('static', filename='js/calendar.js') }}"></script>
 </body>
 </html>

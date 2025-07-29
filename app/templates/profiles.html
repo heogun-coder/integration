@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>프로필 - MyApp</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/main.css') }}">
+</head>
+<body>
+    <nav class="navbar">
+        <div class="navbar-content">
+            <div class="logo">MyApp</div>
+            <ul class="nav-links">
+                <li><a href="/calendar">캘린더</a></li>
+                <li><a href="/chat">채팅</a></li>
+                <li><a href="/profile" class="active">프로필</a></li>
+                <li><a href="#" onclick="logout()">로그아웃</a></li>
+            </ul>
+        </div>
+    </nav>
+
+    <div class="main-container">
+        <div class="calendar-container">
+            <div class="calendar-header">
+                <h2>내 프로필</h2>
+            </div>
+            
+            <div style="max-width: 600px; margin: 0 auto;">
+                <div class="event-form">
+                    <div style="text-align: center; margin-bottom: 2rem;">
+                        <div style="width: 120px; height: 120px; border-radius: 50%; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); margin: 0 auto 1rem; display: flex; align-items: center; justify-content: center; color: white; font-size: 3rem; font-weight: bold;" id="profileAvatar">
+                            <!-- 사용자 이니셜이 표시됩니다 -->
+                        </div>
+                        <h3 id="userName" style="margin: 0; color: #333;"></h3>
+                        <p style="color: #666; margin: 0.5rem 0;">회원가입일: <span id="joinDate"></span></p>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>통계</label>
+                        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 1rem; margin-top: 0.5rem;">
+                            <div style="background: rgba(102, 126, 234, 0.1); padding: 1rem; border-radius: 10px; text-align: center;">
+                                <div style="font-size: 2rem; font-weight: bold; color: #667eea;" id="eventCount">0</div>
+                                <div style="color: #666; font-size: 0.9rem;">등록된 일정</div>
+                            </div>
+                            <div style="background: rgba(102, 126, 234, 0.1); padding: 1rem; border-radius: 10px; text-align: center;">
+                                <div style="font-size: 2rem; font-weight: bold; color: #667eea;" id="messageCount">0</div>
+                                <div style="color: #666; font-size: 0.9rem;">보낸 메시지</div>
+                            </div>
+                            <div style="background: rgba(102, 126, 234, 0.1); padding: 1rem; border-radius: 10px; text-align: center;">
+                                <div style="font-size: 2rem; font-weight: bold; color: #667eea;" id="roomCount">0</div>
+                                <div style="color: #666; font-size: 0.9rem;">참여한 채팅방</div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>최근 활동</label>
+                        <div id="recentActivity" style="background: rgba(248, 249, 250, 0.8); padding: 1rem; border-radius: 10px; margin-top: 0.5rem;">
+                            <!-- 최근 활동이 표시됩니다 -->
+                        </div>
+                    </div>
+                    
+                    <div style="display: flex; gap: 1rem;">
+                        <button class="btn" style="flex: 1;" onclick="showSettings()">설정</button>
+                        <button class="btn" style="flex: 1; background: #ff6b6b;" onclick="logout()">로그아웃</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            if (!localStorage.getItem('token')) {
+                window.location.href = '/login';
+                return;
+            }
+            
+            loadProfile();
+        });
+
+        async function loadProfile() {
+            const username = localStorage.getItem('username');
+            if (username) {
+                document.getElementById('userName').textContent = username;
+                document.getElementById('profileAvatar').textContent = username[0].toUpperCase();
+            }
+            
+            // 가입일 (임시로 현재 날짜 사용)
+            document.getElementById('joinDate').textContent = new Date().toLocaleDateString('ko-KR');
+            
+            // 통계 로드
+            await loadStats();
+            loadRecentActivity();
+        }
+
+        async function loadStats() {
+            try {
+                // 이벤트 수
+                const eventsResponse = await fetch('/api/calendar/events', {
+                    headers: { 'Authorization': 'Bearer ' + localStorage.getItem('token') }
+                });
+                if (eventsResponse.ok) {
+                    const events = await eventsResponse.json();
+                    document.getElementById('eventCount').textContent = events.length;
+                }
+
+                // 채팅방 수
+                const roomsResponse = await fetch('/api/chat/rooms', {
+                    headers: { 'Authorization': 'Bearer ' + localStorage.getItem('token') }
+                });
+                if (roomsResponse.ok) {
+                    const rooms = await roomsResponse.json();
+                    document.getElementById('roomCount').textContent = rooms.length;
+                }
+
+                // 메시지 수는 임시로 랜덤 값 사용
+                document.getElementById('messageCount').textContent = Math.floor(Math.random() * 100);
+            } catch (error) {
+                console.error('통계 로드 실패:', error);
+            }
+        }
+
+        function loadRecentActivity() {
+            const activities = [
+                '새 일정을 추가했습니다',
+                '채팅방에 메시지를 보냈습니다',
+                '프로필을 업데이트했습니다'
+            ];
+            
+            const recentActivity = document.getElementById('recentActivity');
+            recentActivity.innerHTML = activities.map(activity => 
+                `<div style="padding: 0.5rem 0; border-bottom: 1px solid #eee; color: #666;">• ${activity}</div>`
+            ).join('');
+        }
+
+        function showSettings() {
+            showNotification('설정 기능은 준비 중입니다.');
+        }
+
+        function logout() {
+            localStorage.removeItem('token');
+            localStorage.removeItem('username');
+            showNotification('로그아웃되었습니다.');
+            setTimeout(() => {
+                window.location.href = '/login';
+            }, 1000);
+        }
+
+        function showNotification(message, type = 'success') {
+            const notification = document.createElement('div');
+            notification.className = 'notification';
+            if (type === 'error') {
+                notification.style.background = 'linear-gradient(135deg, #ff6b6b 0%, #ee5a52 100%)';
+            }
+            notification.textContent = message;
+            document.body.appendChild(notification);
+            
+            setTimeout(() => {
+                notification.remove();
+            }, 3000);
+        }
+    </script>
+</body>
+</html>
