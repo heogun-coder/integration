@@ -1,5 +1,5 @@
 # Profile module for MyApp
-# This module handles user profile related functionality
+# 유저 프로필에 할당 가능
 
 from .routes import profile_bp
 

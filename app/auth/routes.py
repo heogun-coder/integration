@@ -1,6 +1,5 @@
 from flask import Blueprint, request, jsonify, render_template, redirect, url_for
-from flask_jwt_extended import create_access_token, jwt_required, unset_jwt_cookies
-from werkzeug.security import generate_password_hash
+from flask_jwt_extended import create_access_token, unset_jwt_cookies
 from app.models import User, db
 
 auth_bp = Blueprint('auth', __name__)
