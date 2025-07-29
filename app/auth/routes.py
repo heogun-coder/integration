@@ -1,5 +1,5 @@
 from flask import Blueprint, request, jsonify, render_template, redirect, url_for
-from flask_jwt_extended import create_access_token, jwt_required
+from flask_jwt_extended import create_access_token, jwt_required, unset_jwt_cookies
 from werkzeug.security import generate_password_hash
 from app.models import User, db
 
@@ -46,6 +46,19 @@ def login():
     
     user = User.query.filter_by(username=username).first()
     if user and user.check_password(password):
-        access_token = create_access_token(identity=user.id)
-        return jsonify({'access_token': access_token, 'username': user.username})
+        # user.id를 문자열로 변환
+        access_token = create_access_token(identity=str(user.id))
+        response = jsonify({'access_token': access_token, 'username': user.username})
+        
+        # 쿠키에도 토큰 설정
+        from flask_jwt_extended import set_access_cookies
+        set_access_cookies(response, access_token)
+        
+        return response
     return jsonify({'error': '잘못된 사용자명 또는 비밀번호입니다.'}), 401
+
+@auth_bp.route('/api/auth/logout', methods=['POST'])
+def logout():
+    response = jsonify({'message': '로그아웃되었습니다.'})
+    unset_jwt_cookies(response)
+    return response
