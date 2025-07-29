@@ -14,7 +14,7 @@ def calendar_view():
 @jwt_required()
 def create_event():
     data = request.get_json()
-    user_id = get_jwt_identity()
+    user_id = int(get_jwt_identity())  # 문자열을 정수로 변환
     
     try:
         # 날짜 문자열을 datetime 객체로 변환
@@ -40,7 +40,7 @@ def create_event():
 @calendar_bp.route('/api/calendar/events', methods=['GET'])
 @jwt_required()
 def get_events():
-    user_id = get_jwt_identity()
+    user_id = int(get_jwt_identity())  # 문자열을 정수로 변환
     events = Event.query.filter_by(user_id=user_id).all()
     return jsonify([{
         'id': event.id,
@@ -54,7 +54,7 @@ def get_events():
 @calendar_bp.route('/api/calendar/events/<int:event_id>', methods=['PUT'])
 @jwt_required()
 def update_event(event_id):
-    user_id = get_jwt_identity()
+    user_id = int(get_jwt_identity())  # 문자열을 정수로 변환
     event = Event.query.filter_by(id=event_id, user_id=user_id).first()
     
     if not event:
@@ -80,7 +80,7 @@ def update_event(event_id):
 @calendar_bp.route('/api/calendar/events/<int:event_id>', methods=['DELETE'])
 @jwt_required()
 def delete_event(event_id):
-    user_id = get_jwt_identity()
+    user_id = int(get_jwt_identity())  # 문자열을 정수로 변환
     event = Event.query.filter_by(id=event_id, user_id=user_id).first()
     
     if not event:

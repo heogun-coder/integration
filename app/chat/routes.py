@@ -16,7 +16,7 @@ def chat_view():
 @jwt_required()
 def create_room():
     data = request.get_json()
-    user_id = get_jwt_identity()
+    user_id = int(get_jwt_identity())  # 문자열을 정수로 변환
     
     room = ChatRoom(
         name=data['name'], 
@@ -35,7 +35,7 @@ def create_room():
 @chat_bp.route('/api/chat/rooms', methods=['GET'])
 @jwt_required()
 def get_rooms():
-    user_id = get_jwt_identity()
+    user_id = int(get_jwt_identity())  # 문자열을 정수로 변환
     user = User.query.get(user_id)
     
     rooms = []
@@ -52,7 +52,7 @@ def get_rooms():
 @chat_bp.route('/api/chat/rooms/<int:room_id>/messages', methods=['GET'])
 @jwt_required()
 def get_messages(room_id):
-    user_id = get_jwt_identity()
+    user_id = int(get_jwt_identity())  # 문자열을 정수로 변환
     
     # 사용자가 이 방의 참가자인지 확인
     room = ChatRoom.query.get(room_id)
