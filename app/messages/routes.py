@@ -1,6 +1,7 @@
 from flask import Blueprint, request, jsonify, render_template
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from app.models import PrivateMessage, User, db
+from app.crypto import MessageCrypto
 from datetime import datetime
 from sqlalchemy import or_, and_
 
@@ -128,13 +129,14 @@ def get_messages_with_user(other_user_id):
     for msg in reversed(messages.items):  # 시간순 정렬
         message_list.append({
             'id': msg.id,
-            'content': msg.content,
+            'content': msg.content,  # 암호화된 상태로 전송, 클라이언트에서 복호화
             'message_type': msg.message_type,
             'sender_id': msg.sender_id,
             'receiver_id': msg.receiver_id,
             'timestamp': msg.timestamp.isoformat(),
             'is_read': msg.is_read,
-            'is_own': msg.sender_id == user_id
+            'is_own': msg.sender_id == user_id,
+            'is_encrypted': msg.is_encrypted
         })
     
     return jsonify({
@@ -165,11 +167,17 @@ def send_message():
         if user_id == data['receiver_id']:
             return jsonify({'error': '자기 자신에게는 메시지를 보낼 수 없습니다.'}), 400
         
+        content = data['content']
+        is_encrypted = data.get('is_encrypted', True)
+        
+        # 암호화된 메시지인 경우 클라이언트에서 이미 암호화된 상태로 전송됨
+        # 서버에서는 그대로 저장만 함
         message = PrivateMessage(
             sender_id=user_id,
             receiver_id=data['receiver_id'],
-            content=data['content'],
-            message_type=data.get('message_type', 'text')
+            content=content,
+            message_type=data.get('message_type', 'text'),
+            is_encrypted=is_encrypted
         )
         
         db.session.add(message)
@@ -185,12 +193,57 @@ def send_message():
                 'receiver_id': message.receiver_id,
                 'timestamp': message.timestamp.isoformat(),
                 'is_read': message.is_read,
-                'is_own': True
+                'is_own': True,
+                'is_encrypted': message.is_encrypted
             }
         }), 201
         
     except Exception as e:
         return jsonify({'error': '메시지 전송에 실패했습니다.'}), 400
+
+@messages_bp.route('/api/messages/send-encrypted', methods=['POST'])
+@jwt_required()
+def send_encrypted_private_message():
+    """암호화된 프라이빗 메시지를 직접 전송하는 API"""
+    data = request.get_json()
+    user_id = int(get_jwt_identity())
+    
+    receiver_id = data.get('receiver_id')
+    encrypted_content = data.get('encrypted_content')
+    message_type = data.get('message_type', 'text')
+    
+    if not receiver_id or not encrypted_content:
+        return jsonify({'error': '받는 사람 ID와 암호화된 내용이 필요합니다.'}), 400
+    
+    try:
+        # 받는 사람이 존재하는지 확인
+        receiver = User.query.get(receiver_id)
+        if not receiver:
+            return jsonify({'error': '받는 사람을 찾을 수 없습니다.'}), 404
+        
+        # 자기 자신에게 메시지 보내기 방지
+        if user_id == receiver_id:
+            return jsonify({'error': '자기 자신에게는 메시지를 보낼 수 없습니다.'}), 400
+        
+        message = PrivateMessage(
+            sender_id=user_id,
+            receiver_id=receiver_id,
+            content=encrypted_content,
+            message_type=message_type,
+            is_encrypted=True
+        )
+        
+        db.session.add(message)
+        db.session.commit()
+        
+        return jsonify({
+            'message': '암호화된 메시지가 전송되었습니다.',
+            'message_id': message.id,
+            'timestamp': message.timestamp.isoformat()
+        })
+        
+    except Exception as e:
+        return jsonify({'error': '메시지 전송 중 오류가 발생했습니다.'}), 500
 
 @messages_bp.route('/api/messages/<int:message_id>', methods=['DELETE'])
 @jwt_required()

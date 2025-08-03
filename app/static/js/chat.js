@@ -23,16 +23,33 @@ document.addEventListener('DOMContentLoaded', () => {
     setInterval(() => {
         if (socket && socket.connected) {
             socket.emit('ping', { username: currentUser });
+            // 온라인 사용자 목록 업데이트 요청
+            socket.emit('request_online_users');
         }
-    }, 60000); // 1분마다
+    }, 30000); // 30초마다
+    
+    // 초기 온라인 사용자 목록 로드
+    setTimeout(() => {
+        if (socket && socket.connected) {
+            socket.emit('request_online_users');
+        }
+    }, 2000); // 2초 후
 });
 
 function initializeSocket() {
-    socket = io();
+    // JWT 토큰을 포함한 Socket.IO 연결
+    socket = io({
+        auth: {
+            token: localStorage.getItem('token'),
+            username: currentUser
+        }
+    });
     
     socket.on('connect', () => {
         console.log('소켓 연결됨');
         showNotification('연결되었습니다.', 'success');
+        // 연결 후 온라인 상태 업데이트
+        updateAllOnlineUsers();
     });
     
     socket.on('disconnect', () => {
@@ -69,6 +86,14 @@ function initializeSocket() {
     
     socket.on('typing', (data) => {
         showTypingIndicator(data.username, data.is_typing);
+    });
+    
+    socket.on('online_users_update', (data) => {
+        updateGlobalOnlineUsers(data.users);
+    });
+    
+    socket.on('user_status_changed', (data) => {
+        updateUserStatus(data.username, data.is_online);
     });
 }
 
@@ -632,8 +657,168 @@ function updateOnlineUsers() {
     }
 }
 
+async function updateAllOnlineUsers() {
+    try {
+        const response = await fetch('/api/auth/online-users', {
+            headers: {
+                'Authorization': 'Bearer ' + localStorage.getItem('token')
+            }
+        });
+        
+        if (response.ok) {
+            const users = await response.json();
+            updateGlobalOnlineUsers(users);
+        }
+    } catch (error) {
+        console.error('온라인 사용자 로드 실패:', error);
+    }
+}
+
+function updateGlobalOnlineUsers(users) {
+    const onlineUsers = document.getElementById('onlineUsers');
+    if (!onlineUsers) return;
+    
+    const onlineList = users.filter(u => u.is_online && u.username !== currentUser);
+    const offlineList = users.filter(u => !u.is_online && u.username !== currentUser);
+    
+    onlineUsers.innerHTML = `
+        <div style="margin-bottom: 1rem;">
+            <h4 style="font-size: 0.9rem; color: #667eea; margin-bottom: 0.5rem;">
+                온라인 (${onlineList.length})
+            </h4>
+            ${onlineList.map(user => `
+                <div class="user-item online" onclick="startPrivateChat('${user.username}')">
+                    <div class="user-status"></div>
+                    ${user.username}
+                    <button class="invite-btn" onclick="inviteUser('${user.username}', event)" title="채팅방 초대">+</button>
+                </div>
+            `).join('')}
+        </div>
+        <div>
+            <h4 style="font-size: 0.9rem; color: #666; margin-bottom: 0.5rem;">
+                오프라인 (${offlineList.length})
+            </h4>
+            ${offlineList.map(user => `
+                <div class="user-item offline" onclick="startPrivateChat('${user.username}')">
+                    <div class="user-status"></div>
+                    ${user.username}
+                    <button class="invite-btn" onclick="inviteUser('${user.username}', event)" title="채팅방 초대">+</button>
+                </div>
+            `).join('')}
+        </div>
+    `;
+}
+
+function updateUserStatus(username, isOnline) {
+    const userItems = document.querySelectorAll('.user-item');
+    userItems.forEach(item => {
+        if (item.textContent.includes(username)) {
+            item.className = `user-item ${isOnline ? 'online' : 'offline'}`;
+        }
+    });
+    
+    // 채팅방 목록의 온라인 카운트 업데이트
+    loadChatRooms();
+}
+
 function truncateText(text, length) {
     return text.length > length ? text.substring(0, length) + '...' : text;
+}
+
+async function startPrivateChat(username) {
+    try {
+        // 자기 자신과 채팅 시도 방지
+        if (username === currentUser) {
+            showNotification('자기 자신과는 채팅할 수 없습니다.', 'error');
+            return;
+        }
+        
+        // 기존 1:1 채팅방이 있는지 확인
+        const response = await fetch(`/api/chat/private-room/${username}`, {
+            headers: {
+                'Authorization': 'Bearer ' + localStorage.getItem('token')
+            }
+        });
+        
+        if (response.ok) {
+            const data = await response.json();
+            loadChatRooms(); // 채팅방 목록 새로고침
+            setTimeout(() => {
+                joinRoom(data.room_id, `${username}와의 채팅`);
+            }, 500);
+            showNotification(`${username}님과의 기존 채팅방으로 이동합니다.`);
+        } else if (response.status === 404) {
+            // 새 1:1 채팅방 생성
+            const createResponse = await fetch('/api/chat/rooms', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': 'Bearer ' + localStorage.getItem('token')
+                },
+                body: JSON.stringify({
+                    name: `${currentUser} & ${username}`,
+                    is_group: false,
+                    is_private: true,
+                    participants: [username]
+                })
+            });
+            
+            if (createResponse.ok) {
+                const roomData = await createResponse.json();
+                loadChatRooms(); // 채팅방 목록 새로고침
+                setTimeout(() => {
+                    joinRoom(roomData.room_id, roomData.room_name || `${username}와의 채팅`);
+                }, 500);
+                showNotification(`${username}님과의 새 채팅방을 만들었습니다.`);
+            } else {
+                const errorData = await createResponse.json();
+                showNotification(errorData.error || '채팅방 생성에 실패했습니다.', 'error');
+            }
+        } else {
+            const errorData = await response.json();
+            showNotification(errorData.error || '채팅방 확인에 실패했습니다.', 'error');
+        }
+    } catch (error) {
+        console.error('채팅 시작 오류:', error);
+        showNotification('네트워크 오류로 채팅을 시작할 수 없습니다.', 'error');
+    }
+}
+
+async function inviteUser(username, event) {
+    event.stopPropagation();
+    
+    if (!currentRoom) {
+        showNotification('채팅방을 먼저 선택해주세요.', 'error');
+        return;
+    }
+    
+    try {
+        const response = await fetch(`/api/chat/rooms/${currentRoom}/invite`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': 'Bearer ' + localStorage.getItem('token')
+            },
+            body: JSON.stringify({ username: username })
+        });
+        
+        if (response.ok) {
+            showNotification(`${username}님을 초대했습니다.`);
+            loadRoomParticipants(currentRoom);
+            
+            // 실시간으로 다른 사용자들에게 알림
+            socket.emit('user_invited', {
+                room: currentRoom,
+                invited_user: username,
+                invited_by: currentUser
+            });
+        } else {
+            const error = await response.json();
+            showNotification(error.error || '초대에 실패했습니다.', 'error');
+        }
+    } catch (error) {
+        showNotification('네트워크 오류가 발생했습니다.', 'error');
+    }
 }
 
 function logout() {

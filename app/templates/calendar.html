@@ -30,23 +30,54 @@
                         <input type="text" id="title" name="title" required>
                     </div>
                     <div class="form-group">
-                        <label for="repeat">반복</label>
-                        <select id="repeat" name="repeat">
+                        <label for="repeat">반복 설정</label>
+                        <select id="repeat" name="repeat" class="custom-select" onchange="toggleRepeatOptions()">
                             <option value="">반복 없음</option>
-                            <option value="daily">매일</option>
-                            <option value="weekly">매주</option>
-                            <option value="monthly">매월</option>
+                            <option value="daily">매일 반복</option>
+                            <option value="weekly">매주 반복</option>
+                            <option value="monthly">매월 반복</option>
                         </select>
                     </div>
                 </div>
-                <div class="form-row">
+                
+                <!-- 반복 없는 경우: Due date만 표시 -->
+                <div id="singleEventOptions" class="form-row">
+                    <div class="form-group">
+                        <label for="due_date">마감 날짜</label>
+                        <input type="datetime-local" id="due_date" name="due_date" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="priority">우선순위</label>
+                        <select id="priority" name="priority" class="custom-select">
+                            <option value="low">낮음</option>
+                            <option value="normal" selected>보통</option>
+                            <option value="high">높음</option>
+                            <option value="urgent">긴급</option>
+                        </select>
+                    </div>
+                </div>
+                
+                <!-- 반복 있는 경우: 시작/종료 시간 표시 -->
+                <div id="repeatEventOptions" class="form-row" style="display: none;">
                     <div class="form-group">
                         <label for="start_time">시작 시간</label>
-                        <input type="datetime-local" id="start_time" name="start_time" required>
+                        <input type="datetime-local" id="start_time" name="start_time">
                     </div>
                     <div class="form-group">
                         <label for="end_time">종료 시간</label>
                         <input type="datetime-local" id="end_time" name="end_time">
+                    </div>
+                </div>
+                
+                <!-- 반복 범위 설정 -->
+                <div id="repeatRangeOptions" class="form-row" style="display: none;">
+                    <div class="form-group">
+                        <label for="repeat_until">반복 종료일</label>
+                        <input type="date" id="repeat_until" name="repeat_until">
+                    </div>
+                    <div class="form-group">
+                        <label for="repeat_count">반복 횟수 (선택)</label>
+                        <input type="number" id="repeat_count" name="repeat_count" min="1" max="100" placeholder="예: 10">
                     </div>
                 </div>
                 <div class="form-group">
