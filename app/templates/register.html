@@ -54,10 +54,18 @@
                 const data = await response.json();
                 
                 if (response.ok) {
-                    showNotification('회원가입 성공! 로그인 페이지로 이동합니다.');
+                    // 개인키를 로컬스토리지에 안전하게 저장
+                    if (data.private_key) {
+                        localStorage.setItem('user_private_key', data.private_key);
+                        localStorage.setItem('user_public_key', data.public_key);
+                        localStorage.setItem('key_fingerprint', data.key_fingerprint);
+                        console.log('🔑 암호화 키가 안전하게 저장되었습니다.');
+                    }
+                    
+                    showNotification('회원가입 성공! 🔒 암호화 키가 생성되었습니다. 로그인 페이지로 이동합니다.');
                     setTimeout(() => {
                         window.location.href = '/login';
-                    }, 2000);
+                    }, 3000);
                 } else {
                     showNotification(data.error || '회원가입 실패', 'error');
                 }

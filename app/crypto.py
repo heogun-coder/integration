@@ -151,74 +151,23 @@ class MessageCrypto:
 
 
 class GroupCrypto:
-    """그룹 채팅 암호화를 담당하는 클래스"""
+    """그룹 채팅 암호화를 담당하는 클래스 (AES-GCM 사용)"""
     
     @staticmethod
     def generate_group_key():
-        """그룹 채팅용 공유 키 생성"""
-        return base64.b64encode(os.urandom(32)).decode('utf-8')
+        """그룹 채팅용 256비트(32바이트) 공유 키 생성"""
+        return os.urandom(32) # Base64 인코딩 없이 순수 바이트 반환
     
     @staticmethod
-    def encrypt_group_message(message, group_key):
-        """그룹 메시지 AES 암호화"""
-        key = base64.b64decode(group_key.encode('utf-8'))
-        iv = os.urandom(16)
-        
-        cipher = Cipher(algorithms.AES(key), modes.CBC(iv), backend=default_backend())
-        encryptor = cipher.encryptor()
-        
-        # 패딩 추가
-        padder = sym_padding.PKCS7(128).padder()
-        padded_data = padder.update(message.encode('utf-8'))
-        padded_data += padder.finalize()
-        
-        encrypted_message = encryptor.update(padded_data) + encryptor.finalize()
-        
-        # IV와 암호화된 메시지를 결합
-        encrypted_data = {
-            'encrypted_message': base64.b64encode(encrypted_message).decode('utf-8'),
-            'iv': base64.b64encode(iv).decode('utf-8')
-        }
-        
-        return base64.b64encode(json.dumps(encrypted_data).encode('utf-8')).decode('utf-8')
-    
-    @staticmethod
-    def decrypt_group_message(encrypted_data, group_key):
-        """그룹 메시지 AES 복호화"""
-        try:
-            # base64 디코딩 및 JSON 파싱
-            decoded_data = json.loads(base64.b64decode(encrypted_data.encode('utf-8')).decode('utf-8'))
-            
-            encrypted_message = base64.b64decode(decoded_data['encrypted_message'].encode('utf-8'))
-            iv = base64.b64decode(decoded_data['iv'].encode('utf-8'))
-            key = base64.b64decode(group_key.encode('utf-8'))
-            
-            # AES 복호화
-            cipher = Cipher(algorithms.AES(key), modes.CBC(iv), backend=default_backend())
-            decryptor = cipher.decryptor()
-            
-            decrypted_padded = decryptor.update(encrypted_message) + decryptor.finalize()
-            
-            # 패딩 제거
-            unpadder = sym_padding.PKCS7(128).unpadder()
-            decrypted_message = unpadder.update(decrypted_padded)
-            decrypted_message += unpadder.finalize()
-            
-            return decrypted_message.decode('utf-8')
-            
-        except Exception as e:
-            raise ValueError(f"복호화 실패: {str(e)}")
-    
-    @staticmethod
-    def encrypt_group_key_for_user(group_key, user_public_key_pem):
-        """사용자의 공개키로 그룹 키를 암호화"""
+    def encrypt_group_key_for_user(group_key_bytes, user_public_key_pem):
+        """사용자의 공개키로 그룹 키를 암호화 (RSA-OAEP)"""
         public_key = serialization.load_pem_public_key(
             user_public_key_pem.encode('utf-8'),
             backend=default_backend()
         )
         
         encrypted_group_key = public_key.encrypt(
-            group_key.encode('utf-8'),
+            group_key_bytes, # 순수 바이트를 직접 암호화
             asym_padding.OAEP(
                 mgf=asym_padding.MGF1(algorithm=hashes.SHA256()),
                 algorithm=hashes.SHA256(),
@@ -229,17 +178,17 @@ class GroupCrypto:
         return base64.b64encode(encrypted_group_key).decode('utf-8')
     
     @staticmethod
-    def decrypt_group_key_for_user(encrypted_group_key, user_private_key_pem):
-        """사용자의 개인키로 그룹 키를 복호화"""
+    def decrypt_group_key_for_user(encrypted_group_key_b64, user_private_key_pem):
+        """사용자의 개인키로 그룹 키를 복호화 (RSA-OAEP)"""
         private_key = serialization.load_pem_private_key(
             user_private_key_pem.encode('utf-8'),
             password=None,
             backend=default_backend()
         )
         
-        encrypted_key_bytes = base64.b64decode(encrypted_group_key.encode('utf-8'))
+        encrypted_key_bytes = base64.b64decode(encrypted_group_key_b64.encode('utf-8'))
         
-        decrypted_group_key = private_key.decrypt(
+        decrypted_group_key_bytes = private_key.decrypt(
             encrypted_key_bytes,
             asym_padding.OAEP(
                 mgf=asym_padding.MGF1(algorithm=hashes.SHA256()),
@@ -248,4 +197,4 @@ class GroupCrypto:
             )
         )
         
-        return decrypted_group_key.decode('utf-8')
+        return decrypted_group_key_bytes # 순수 바이트 반환

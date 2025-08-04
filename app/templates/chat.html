@@ -88,18 +88,52 @@
                     <label for="roomName">채팅방 이름</label>
                     <input type="text" id="roomName" name="name" required>
                 </div>
+                
+                <div class="form-group">
+                    <label for="roomDescription">설명 (선택)</label>
+                    <textarea id="roomDescription" name="description" rows="2" placeholder="채팅방에 대한 간단한 설명"></textarea>
+                </div>
+                
                 <div class="form-group">
                     <label>
-                        <input type="checkbox" id="isGroup" name="is_group"> 
-                        그룹 채팅
+                        <input type="checkbox" id="isGroup" name="is_group" onchange="toggleGroupOptions()"> 
+                        그룹 채팅방
                     </label>
                 </div>
-                <button type="submit" class="btn">채팅방 만들기</button>
+                
+                <!-- 그룹 채팅방인 경우 사용자 초대 옵션 -->
+                <div id="groupOptions" style="display: none;">
+                    <div class="form-group">
+                        <label for="inviteUsers">초대할 사용자</label>
+                        <div class="user-invite-container">
+                            <div class="search-user-box">
+                                <input type="text" id="searchUser" placeholder="사용자명 검색..." autocomplete="off">
+                                <div id="userSearchResults" class="search-results"></div>
+                            </div>
+                            <div class="selected-users" id="selectedUsers">
+                                <!-- 선택된 사용자들이 여기 표시됩니다 -->
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>
+                            <input type="checkbox" id="isPrivate" name="is_private">
+                            비공개 채팅방
+                        </label>
+                    </div>
+                </div>
+                
+                <div class="form-actions">
+                    <button type="button" class="btn btn-secondary" onclick="closeCreateRoomModal()">취소</button>
+                    <button type="submit" class="btn btn-primary">채팅방 만들기</button>
+                </div>
             </form>
         </div>
     </div>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.5.0/socket.io.js"></script>
+    <script src="{{ url_for('static', filename='js/crypto.js') }}"></script>
     <script src="{{ url_for('static', filename='js/chat.js') }}"></script>
 </body>
 </html>

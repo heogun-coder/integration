@@ -31,8 +31,7 @@ class User(db.Model):
     messages = db.relationship('Message', backref='user', lazy=True)
     chat_rooms = db.relationship('ChatRoom', secondary=room_participants, 
                                back_populates='participants', lazy='dynamic')
-    sent_private_messages = db.relationship('PrivateMessage', foreign_keys='PrivateMessage.sender_id', backref='sender', lazy=True)
-    received_private_messages = db.relationship('PrivateMessage', foreign_keys='PrivateMessage.receiver_id', backref='receiver', lazy=True)
+
 
     def set_password(self, password):
         self.password_hash = generate_password_hash(password)
@@ -136,19 +135,7 @@ class UserGroupKey(db.Model):
     # 복합 유니크 제약조건
     __table_args__ = (db.UniqueConstraint('user_id', 'room_id', name='unique_user_room_key'),)
 
-class PrivateMessage(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    sender_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
-    receiver_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
-    content = db.Column(db.Text, nullable=False)  # 암호화된 경우 암호화된 텍스트
-    message_type = db.Column(db.String(20), default='text')
-    timestamp = db.Column(db.DateTime, default=datetime.utcnow)
-    is_read = db.Column(db.Boolean, default=False)
-    is_deleted_by_sender = db.Column(db.Boolean, default=False)
-    is_deleted_by_receiver = db.Column(db.Boolean, default=False)
-    
-    # 암호화 관련 필드
-    is_encrypted = db.Column(db.Boolean, default=True)  # 메시지가 암호화되었는지 여부
+
 
 class Announcement(db.Model):
     id = db.Column(db.Integer, primary_key=True)

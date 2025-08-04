@@ -5,6 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>캘린더 - MyApp</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/main.css') }}">
+    <!-- FullCalendar CSS -->
+    <link href='https://cdn.jsdelivr.net/npm/fullcalendar@6.1.10/main.min.css' rel='stylesheet' />
 </head>
 <body>
     <nav class="navbar">
@@ -88,13 +90,21 @@
             </form>
         </div>
 
-        <!-- 캘린더 컨테이너 -->
+        <!-- FullCalendar 컨테이너 -->
         <div class="calendar-container">
             <div class="calendar-header">
                 <h2>내 일정</h2>
-                <button class="add-event-btn" onclick="scrollToForm()">+ 이벤트 추가</button>
+                <div class="calendar-controls">
+                    <button class="add-event-btn" onclick="scrollToForm()">+ 이벤트 추가</button>
+                    <button class="view-btn" onclick="toggleView()" id="viewToggle">리스트 보기</button>
+                </div>
             </div>
-            <div class="events-grid" id="eventsGrid">
+            
+            <!-- FullCalendar -->
+            <div id="calendar" class="fullcalendar-wrapper"></div>
+            
+            <!-- 기존 이벤트 그리드 (토글 가능) -->
+            <div class="events-grid" id="eventsGrid" style="display: none;">
                 <!-- 이벤트들이 동적으로 추가됩니다 -->
             </div>
         </div>
@@ -144,6 +154,9 @@
         </div>
     </div>
 
+    <!-- FullCalendar JavaScript -->
+    <script src='https://cdn.jsdelivr.net/npm/fullcalendar@6.1.10/index.global.min.js'></script>
+    
     <script src="{{ url_for('static', filename='js/calendar.js') }}"></script>
 </body>
 </html>

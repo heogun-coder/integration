@@ -47,8 +47,8 @@ def create_room():
                         'is_encrypted': existing_room.is_encrypted
                     }), 200
         
-        # 그룹 암호화 키 생성
-        group_key = GroupCrypto.generate_group_key()
+        # 그룹 암호화 키 생성 (순수 바이트)
+        group_key_bytes = GroupCrypto.generate_group_key()
         
         room = ChatRoom(
             name=data['name'], 
@@ -56,7 +56,8 @@ def create_room():
             is_group=is_group,
             is_private=is_private,
             created_by=user_id,
-            encryption_key=group_key,
+            # DB 저장은 Base64 인코딩된 문자열로
+            encryption_key=__import__('base64').b64encode(group_key_bytes).decode('utf-8'),
             is_encrypted=data.get('is_encrypted', True)
         )
         db.session.add(room)
@@ -73,15 +74,19 @@ def create_room():
                 room.participants.append(participant)
         
         # 모든 참가자들에게 그룹 키 분배
-        for participant in room.participants:
-            if participant.public_key and room.is_encrypted:
-                encrypted_key = GroupCrypto.encrypt_group_key_for_user(group_key, participant.public_key)
-                user_group_key = UserGroupKey(
-                    user_id=participant.id,
-                    room_id=room.id,
-                    encrypted_group_key=encrypted_key
-                )
-                db.session.add(user_group_key)
+        if room.is_encrypted:
+            for participant in room.participants:
+                if participant.public_key:
+                    encrypted_key_b64 = GroupCrypto.encrypt_group_key_for_user(
+                        group_key_bytes, # 순수 바이트 키를 암호화
+                        participant.public_key
+                    )
+                    user_group_key = UserGroupKey(
+                        user_id=participant.id,
+                        room_id=room.id,
+                        encrypted_group_key=encrypted_key_b64
+                    )
+                    db.session.add(user_group_key)
         
         db.session.commit()
         
@@ -578,6 +583,7 @@ def handle_message(data):
     content = data['content']
     username = data['username']
     reply_to_id = data.get('reply_to_id')
+    # 암호화 여부는 클라이언트에서 명시적으로 받아옴. 없으면 False.
     is_encrypted = data.get('is_encrypted', False)
     
     # 사용자 ID 가져오기
@@ -597,7 +603,7 @@ def handle_message(data):
         user_id=user.id,
         timestamp=datetime.utcnow(),
         reply_to_id=reply_to_id,
-        is_encrypted=is_encrypted or chat_room.is_encrypted
+        is_encrypted=is_encrypted # 클라이언트에서 받은 값 그대로 사용
     )
     db.session.add(message)
     

@@ -5,19 +5,42 @@ let typingTimer;
 let isTyping = false;
 let currentPage = 1;
 let hasMoreMessages = true;
+let selectedUsers = [];
+let allUsers = [];
+let cryptoInitialized = false;
 
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
+    console.log('[Chat] DOM 로드 완료, 초기화 시작...');
     // 인증 확인
     if (!localStorage.getItem('token')) {
+        console.log('[Chat] 토큰 없음, 로그인 페이지로 리디렉션.');
         window.location.href = '/login';
         return;
     }
+    console.log('[Chat] 토큰 확인, 암호화 초기화 시도...');
 
+    // 암호화 시스템 초기화
+    try {
+        cryptoInitialized = await initializeCrypto();
+        if (cryptoInitialized) {
+            console.log('✅ [Chat] 종단간 암호화가 성공적으로 활성화되었습니다.');
+        } else {
+            console.warn('⚠️ [Chat] 암호화 초기화 실패 - 메시지 전송이 비활성화됩니다.');
+        }
+    } catch (error) {
+        console.error('❌ [Chat] 암호화 초기화 중 심각한 오류 발생:', error);
+        cryptoInitialized = false;
+    }
+
+    console.log('[Chat] 소켓 초기화 및 채팅방 로드 시작...');
     initializeSocket();
     loadChatRooms();
     
     // 채팅방 생성 폼 제출
     document.getElementById('createRoomForm').addEventListener('submit', handleCreateRoom);
+    
+    // 사용자 검색 이벤트 설정
+    setupUserSearchEvents();
     
     // 주기적으로 온라인 상태 업데이트
     setInterval(() => {
@@ -126,70 +149,87 @@ function displayChatRooms(rooms) {
     }
     
     roomsList.innerHTML = rooms.map(room => {
-        const lastMessageTime = room.last_message_time ? 
-            new Date(room.last_message_time).toLocaleString('ko-KR', {
-                month: 'short',
-                day: 'numeric',
-                hour: '2-digit',
-                minute: '2-digit'
-            }) : '';
-        
-        const unreadBadge = room.unread_count > 0 ? 
-            `<span class="unread-badge">${room.unread_count}</span>` : '';
-        
-        const onlineIndicator = room.online_count > 0 ? 
-            `<span class="online-indicator">${room.online_count}명 온라인</span>` : '';
-        
-        return `
-            <div class="room-item" onclick="joinRoom(${room.id}, '${room.name}')">
+        const roomItemHTML = `
+            <div class="room-item" 
+                 data-room-id="${room.id}"
+                 data-room-name="${room.name}"
+                 data-is-group="${room.is_group}"
+                 data-is-private="${room.is_private}">
                 <div class="room-header">
                     <div style="font-weight: 600; display: flex; align-items: center; gap: 0.5rem;">
                         ${room.name}
-                        ${unreadBadge}
+                        ${room.unread_count > 0 ? `<span class="unread-badge">${room.unread_count}</span>` : ''}
+                        ${room.is_encrypted ? '<span class="encryption-indicator" title="암호화된 채팅방">🔒</span>' : ''}
                     </div>
-                    <div style="font-size: 0.7rem; color: #999;">${lastMessageTime}</div>
+                    <div style="font-size: 0.7rem; color: #999;">${room.last_message_time ? new Date(room.last_message_time).toLocaleString('ko-KR', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : ''}</div>
                 </div>
                 <div style="font-size: 0.8rem; color: #666; margin-top: 0.3rem;">
                     ${room.is_group ? '그룹 채팅' : '개인 채팅'} • ${room.participant_count}명
-                    ${onlineIndicator}
+                    ${room.online_count > 0 ? `<span class="online-indicator">${room.online_count}명 온라인</span>` : ''}
                 </div>
-                ${room.last_message ? 
-                    `<div class="last-message">${room.last_message_user}: ${truncateText(room.last_message, 50)}</div>` 
-                    : ''}
+                ${room.last_message ? `<div class="last-message">${room.last_message_user}: ${truncateText(room.last_message, 50)}</div>` : ''}
             </div>
         `;
+        return roomItemHTML;
     }).join('');
+
+    // 각 채팅방 아이템에 클릭 이벤트 리스너 추가
+    document.querySelectorAll('.room-item').forEach(item => {
+        item.addEventListener('click', (event) => {
+            const roomId = event.currentTarget.dataset.roomId;
+            const roomName = event.currentTarget.dataset.roomName;
+            joinRoom(roomId, roomName, event); // 이벤트 객체 전달
+        });
+    });
 }
 
-function joinRoom(roomId, roomName) {
+function joinRoom(roomId, roomName, event) {
     if (currentRoom === roomId) return;
-    
+
     // 이전 방 나가기
     if (currentRoom) {
         socket.emit('leave', { room: currentRoom, username: currentUser });
+        const prevRoom = document.querySelector(`.room-item[data-room-id="${currentRoom}"]`);
+        if (prevRoom) {
+            prevRoom.classList.remove('active');
+        }
     }
-    
+
     currentRoom = roomId;
     currentPage = 1;
     hasMoreMessages = true;
-    
+
     // 새 방 참여
     socket.emit('join', { room: roomId, username: currentUser });
-    
+
     // UI 업데이트
     document.getElementById('currentRoomName').textContent = roomName;
     document.getElementById('chatInput').style.display = 'block';
-    
+
     // 활성 방 표시
-    document.querySelectorAll('.room-item').forEach(item => {
-        item.classList.remove('active');
-    });
-    event.target.closest('.room-item').classList.add('active');
-    
+    if (event) {
+        const roomElement = event.currentTarget; // 직접 이벤트 타겟 사용
+        document.querySelectorAll('.room-item').forEach(item => {
+            item.classList.remove('active');
+        });
+        roomElement.classList.add('active');
+    }
+
     // 메시지 초기화 및 로드
     document.getElementById('messages').innerHTML = '';
     loadMessages(roomId);
     loadRoomParticipants(roomId);
+
+    // 그룹 키 로드
+    if (cryptoInitialized) {
+        window.clientCrypto.loadGroupKey(currentRoom).then(key => {
+            if (key) {
+                console.log(`[Chat] 채팅방 ${currentRoom}의 그룹 키 로드 성공`);
+            } else {
+                console.error(`[Chat] 채팅방 ${currentRoom}의 그룹 키 로드 실패`);
+            }
+        });
+    }
 }
 
 async function loadMessages(roomId, page = 1) {
@@ -280,7 +320,7 @@ function displayParticipants(participants) {
     `;
 }
 
-function sendMessage() {
+async function sendMessage() {
     const input = document.getElementById('messageInput');
     const content = input.value.trim();
     
@@ -291,11 +331,32 @@ function sendMessage() {
     const replyToId = replyTo && !replyTo.classList.contains('hidden') ? 
         replyTo.dataset.messageId : null;
     
+    let finalContent = content;
+    let isEncrypted = false;
+    
+    // 암호화 처리
+    if (cryptoInitialized && window.clientCrypto) {
+        try {
+            // 모든 채팅에서 AES 그룹 키 사용 (1:1 채팅도 포함)
+            finalContent = await window.clientCrypto.encryptForGroup(content, currentRoom);
+            isEncrypted = true;
+            console.log(`🔒 메시지 암호화됨`);
+        } catch (error) {
+            console.error('메시지 암호화 실패:', error);
+            showNotification('메시지 암호화에 실패하여 전송할 수 없습니다. 페이지를 새로고침 해주세요.', 'error');
+            return; // 암호화 실패 시 전송 중단
+        }
+    } else {
+        showNotification('암호화 시스템이 준비되지 않아 메시지를 보낼 수 없습니다.', 'error');
+        return; // 암호화 불가 시 전송 중단
+    }
+    
     socket.emit('message', {
         room: currentRoom,
-        content: content,
+        content: finalContent,
         username: currentUser,
-        reply_to_id: replyToId
+        reply_to_id: replyToId,
+        is_encrypted: isEncrypted
     });
     
     input.value = '';
@@ -303,7 +364,46 @@ function sendMessage() {
     stopTyping();
 }
 
-function displayMessage(data, animate = true, prepend = false) {
+// 현재 방 정보 가져오기
+function getCurrentRoomInfo() {
+    if (!currentRoom) return null;
+    
+    const roomItem = document.querySelector(`.room-item[data-room-id="${currentRoom}"]`);
+    if (roomItem) {
+        return {
+            is_private: roomItem.dataset.isPrivate === 'true',
+            is_group: roomItem.dataset.isGroup === 'true',
+            name: roomItem.dataset.roomName || roomItem.querySelector('.room-name')?.textContent || ''
+        };
+    }
+    return null;
+}
+
+// 1:1 채팅에서 상대방 사용자명 추출
+function getOtherUsername(roomName) {
+    if (!roomName || !currentUser) return null;
+    
+    // "user1 & user2" 형식에서 상대방 이름 추출
+    const parts = roomName.split(' & ').map(name => name.trim());
+    return parts.find(name => name !== currentUser) || null;
+}
+
+// 메시지 복호화
+async function decryptMessage(encryptedContent, isOwn, roomInfo) {
+    if (!cryptoInitialized || !window.clientCrypto) {
+        return encryptedContent;
+    }
+    
+    try {
+        // 모든 채팅에서 AES 그룹 키 사용 (1:1 채팅도 포함)
+        return await window.clientCrypto.decryptFromGroup(encryptedContent, currentRoom);
+    } catch (error) {
+        console.error('메시지 복호화 실패:', error);
+        return '[복호화 실패]';
+    }
+}
+
+async function displayMessage(data, animate = true, prepend = false) {
     const messages = document.getElementById('messages');
     const isOwn = data.username === currentUser;
     
@@ -319,13 +419,40 @@ function displayMessage(data, animate = true, prepend = false) {
         minute: '2-digit'
     });
     
+    // 메시지 내용 복호화
+    let messageContent = data.content;
+    let encryptionIndicator = '';
+    
+    if (data.is_encrypted) {
+        const roomInfo = getCurrentRoomInfo();
+        try {
+            messageContent = await decryptMessage(data.content, isOwn, roomInfo);
+            encryptionIndicator = ' <span class="encryption-indicator" title="암호화된 메시지">🔒</span>';
+        } catch (error) {
+            console.error('메시지 복호화 실패:', error);
+            messageContent = '[복호화 실패]';
+            encryptionIndicator = ' <span class="encryption-indicator error" title="복호화 실패">❌</span>';
+        }
+    }
+    
+    // 답글 내용도 복호화
     let replyHtml = '';
     if (data.reply_to) {
+        let replyContent = data.reply_to.content;
+        if (data.reply_to.is_encrypted) {
+            try {
+                const roomInfo = getCurrentRoomInfo();
+                replyContent = await decryptMessage(data.reply_to.content, data.reply_to.username === currentUser, roomInfo);
+            } catch (error) {
+                replyContent = '[복호화 실패]';
+            }
+        }
+        
         replyHtml = `
             <div class="reply-indicator">
                 <div class="reply-line"></div>
                 <div class="reply-info">
-                    <strong>${data.reply_to.username}</strong>: ${data.reply_to.content}
+                    <strong>${data.reply_to.username}</strong>: ${replyContent}
                 </div>
             </div>
         `;
@@ -337,7 +464,7 @@ function displayMessage(data, animate = true, prepend = false) {
             ${replyHtml}
             <div class="message-content" oncontextmenu="showMessageMenu(event, ${data.id}, ${isOwn})">
                 ${!isOwn ? `<div class="message-sender">${data.username}</div>` : ''}
-                <div class="message-text">${data.content}</div>
+                <div class="message-text">${messageContent}${encryptionIndicator}</div>
                 <div class="message-time">
                     ${time}
                     ${data.is_edited ? '<span class="edited-indicator">(수정됨)</span>' : ''}
@@ -853,3 +980,166 @@ document.addEventListener('click', (e) => {
         closeCreateRoomModal();
     }
 });
+
+// 채팅방 생성 모달 관련 함수들
+function openCreateRoomModal() {
+    document.getElementById('createRoomModal').style.display = 'block';
+    // 사용자 목록 로드
+    loadAllUsers();
+}
+
+function closeCreateRoomModal() {
+    document.getElementById('createRoomModal').style.display = 'none';
+    // 폼 리셋
+    document.getElementById('createRoomForm').reset();
+    selectedUsers = [];
+    updateSelectedUsersDisplay();
+    toggleGroupOptions();
+}
+
+function toggleGroupOptions() {
+    const isGroup = document.getElementById('isGroup').checked;
+    const groupOptions = document.getElementById('groupOptions');
+    
+    if (isGroup) {
+        groupOptions.style.display = 'block';
+    } else {
+        groupOptions.style.display = 'none';
+        selectedUsers = [];
+        updateSelectedUsersDisplay();
+    }
+}
+
+async function loadAllUsers() {
+    try {
+        const response = await fetch('/api/auth/online-users', {
+            headers: {
+                'Authorization': 'Bearer ' + localStorage.getItem('token')
+            }
+        });
+        
+        if (response.ok) {
+            allUsers = await response.json();
+        }
+    } catch (error) {
+        console.error('사용자 목록 로드 실패:', error);
+    }
+}
+
+function selectUser(username) {
+    const user = allUsers.find(u => u.username === username);
+    if (user && !selectedUsers.find(selected => selected.username === username)) {
+        selectedUsers.push(user);
+        updateSelectedUsersDisplay();
+        
+        // 검색창 초기화
+        document.getElementById('searchUser').value = '';
+        document.getElementById('userSearchResults').style.display = 'none';
+    }
+}
+
+function removeUser(username) {
+    selectedUsers = selectedUsers.filter(user => user.username !== username);
+    updateSelectedUsersDisplay();
+}
+
+function updateSelectedUsersDisplay() {
+    const selectedUsersContainer = document.getElementById('selectedUsers');
+    
+    if (selectedUsers.length === 0) {
+        selectedUsersContainer.innerHTML = '<p style="color: #999; font-size: 0.9rem;">선택된 사용자가 없습니다.</p>';
+        return;
+    }
+    
+    selectedUsersContainer.innerHTML = selectedUsers.map(user => `
+        <div class="selected-user-tag">
+            <span>${user.username}</span>
+            <button class="remove-user" onclick="removeUser('${user.username}')" type="button">×</button>
+        </div>
+    `).join('');
+}
+
+function setupUserSearchEvents() {
+    const searchUserInput = document.getElementById('searchUser');
+    const searchResults = document.getElementById('userSearchResults');
+    
+    if (searchUserInput) {
+        searchUserInput.addEventListener('input', (e) => {
+            const query = e.target.value.trim().toLowerCase();
+            
+            if (query.length === 0) {
+                searchResults.style.display = 'none';
+                return;
+            }
+            
+            const filteredUsers = allUsers.filter(user => 
+                user.username.toLowerCase().includes(query) && 
+                user.username !== currentUser &&
+                !selectedUsers.find(selected => selected.username === user.username)
+            );
+            
+            if (filteredUsers.length > 0) {
+                searchResults.innerHTML = filteredUsers.map(user => `
+                    <div class="search-result-item" onclick="selectUser('${user.username}')">
+                        <div class="user-status ${user.is_online ? 'online' : ''}"></div>
+                        <span>${user.username}</span>
+                        ${user.is_online ? '<small style="color: #4CAF50; margin-left: auto;">온라인</small>' : ''}
+                    </div>
+                `).join('');
+                searchResults.style.display = 'block';
+            } else {
+                searchResults.innerHTML = '<div class="search-result-item" style="color: #999;">검색 결과가 없습니다.</div>';
+                searchResults.style.display = 'block';
+            }
+        });
+        
+        // 검색창 포커스 해제시 결과 숨기기
+        searchUserInput.addEventListener('blur', () => {
+            setTimeout(() => {
+                searchResults.style.display = 'none';
+            }, 200);
+        });
+    }
+}
+
+async function handleCreateRoom(e) {
+    e.preventDefault();
+    
+    const formData = new FormData(e.target);
+    const roomData = {
+        name: formData.get('name'),
+        description: formData.get('description') || '',
+        is_group: document.getElementById('isGroup').checked,
+        is_private: document.getElementById('isPrivate').checked,
+        participants: selectedUsers.map(user => user.username)
+    };
+    
+    try {
+        const response = await fetch('/api/chat/rooms', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': 'Bearer ' + localStorage.getItem('token')
+            },
+            body: JSON.stringify(roomData)
+        });
+        
+        if (response.ok) {
+            const result = await response.json();
+            showNotification('채팅방이 생성되었습니다!');
+            closeCreateRoomModal();
+            loadChatRooms();
+            
+            // 생성된 방으로 이동
+            setTimeout(() => {
+                joinRoom(result.room_id, result.room_name || roomData.name);
+            }, 500);
+        } else {
+            const error = await response.json();
+            showNotification(error.error || '채팅방 생성에 실패했습니다.', 'error');
+        }
+    } catch (error) {
+        console.error('채팅방 생성 오류:', error);
+        showNotification('네트워크 오류가 발생했습니다.', 'error');
+    }
+}

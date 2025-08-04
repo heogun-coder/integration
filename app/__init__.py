@@ -22,13 +22,12 @@ def create_app():
     from app.calendar.routes import calendar_bp
     from app.chat.routes import chat_bp
     from app.profile.routes import profile_bp
-    from app.messages.routes import messages_bp
+
     
     app.register_blueprint(auth_bp)
     app.register_blueprint(calendar_bp)
     app.register_blueprint(chat_bp)
     app.register_blueprint(profile_bp)
-    app.register_blueprint(messages_bp)
 
     with app.app_context():
         db.create_all()

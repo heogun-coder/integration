@@ -15,7 +15,7 @@ def register_page():
 
 @auth_bp.route('/')
 def index():
-    return redirect(url_for('auth.login_page'))
+    return render_template('index.html')
 
 @auth_bp.route('/api/auth/register', methods=['POST'])
 def register():
@@ -42,6 +42,7 @@ def register():
             username=username,
             email=email,
             public_key=public_key_pem,
+            private_key=private_key_pem,  # 임시로 서버에도 저장 (테스트용)
             key_fingerprint=key_fingerprint
         )
         user.set_password(password)
@@ -139,8 +140,9 @@ def get_my_keys():
     return jsonify({
         'username': user.username,
         'public_key': user.public_key,
+        'private_key': user.private_key, # 개인키도 함께 반환
         'key_fingerprint': user.key_fingerprint,
-        'has_keys': bool(user.public_key)
+        'has_keys': bool(user.public_key and user.private_key)
     })
 
 @auth_bp.route('/api/auth/regenerate-keys', methods=['POST'])
